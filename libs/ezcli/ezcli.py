@@ -5,7 +5,6 @@ like what fabric offers.  Anyway, I kind of enjoy the decorator syntax.
 """
 
 import argparse
-import sys
 import threading
 
 
