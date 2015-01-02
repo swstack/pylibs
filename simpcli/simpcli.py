@@ -2,109 +2,154 @@
 
 This started as a fun/toy project and actually ended up to be very much
 like what fabric offers.  Anyway, I kind of enjoy the decorator syntax.
+
 """
 
+# TODO: Simple code usage example
+# TODO: Add flag-type argument decorator (e.g. action=store_true)
+# TODO: Implement argument types
+
 import argparse
-import threading
 
 
-# public
-class command(object):
-    """Decorator for adding a command to EZCLI"""
-    def __init__(self, description=None):
-        self._description = description
+class _SimpleCli(object):
+    """Core component of simpcli
 
-    def __call__(self, fn):
-        EZCLI.add_command(fn.__name__, self._description, fn)
-        return fn
-
-
-# public
-class positional_argument(object):
-    """Decorator for adding a positional argument to an EZCLI command
-
-    Implements the same interface as argparse.add_argument.
-    """
-    def __init__(self, *args, **kwargs):
-        self._args = args
-        self._kwargs = kwargs
-
-    def __call__(self, fn):
-        EZCLI.add_argument(fn.__name__, *self._args, **self._kwargs)
-        return fn
-
-
-# public
-class optional_argument(positional_argument):
-    """Decorator for adding an optional argument to an EZCLI command"""
-
-
-# public
-class EZCLI(object):
-    """Core component of the ezcli library
-
-    Implements the Singleton pattern because, although unlikely, there should
-    only be one of these instances in the system.  There are class level methods
-    that expose interfaces for adding commands and subcommands that we need
-    to make sure are added to the same CLI, in case of abuse.
-
-    The EZCLI is inherently meant to implement a subparser, to offer a fabric-like
-    interface.  If you'd like to alter the "root" lever parser there are utilities
-    to do so.  See the usage for more details:
-
-        $ bin/ezcli [root options] command [command options]
+    The ``SimpleCli`` implements a subparser to offer a name-based command
+    executor from the command line.  If you'd like to alter the "root" lever parser
+    there are utilities to do so.  See usage for more details.
 
     """
 
-    _construction_lock = threading.RLock()
-    _singleton = None
+    def __init__(self, name=''):
+        self._root_parser = argparse.ArgumentParser(prog=name)
+        self._command_parsers = self._root_parser.add_subparsers(help="Commands")
+        self._commands = {}
 
-    # thread safe
-    def __new__(cls, *args, **kwargs):
-        with cls._construction_lock:
-            if not cls._singleton:
-                cls._singleton = super(EZCLI, cls).__new__(cls, *args, **kwargs)
-        return cls._singleton
+    def add_command(self, name, description, handler):
+        """Extend ``SimpleCli`` with a command"""
 
-    def __init__(self):
-        self._root_parser = argparse.ArgumentParser()
-        self._sub_parser = self._root_parser.add_subparsers(help="Commands")
-        self._ezcli = {}
+        self._commands[name] = {
+            "description": description,
+            "handler": handler,
+            "positionals": [],
+            "optionals": [],
+        }
 
-    #---------------------------------------------------------------------------
-    # Class methods used by decorators
-    #---------------------------------------------------------------------------
-    @classmethod
-    def add_command(cls, command_name, command_help, handler):
-        """Extend EZCLI with a command"""
-        cls._singleton._ezcli[command_name] = {
-                                                "help": command_help,
-                                                "handler": handler,
-                                                "args": [],  # arg/kwarg pairs
-                                              }
+    def add_positional_argument(self, command_name, description):
+        """Add an argument to an existing command"""
 
-    @classmethod
-    def add_argument(cls, command_name, *args, **kwargs):
-        """Add an argument to a previously added command"""
-        command = cls._singleton._ezcli[command_name]
-        command.update("args", (args, kwargs))
+        cmd = self._commands.get(command_name, None)
+        if cmd:
+            cmd['positionals'].append({
+                'description': description,
+            })
 
-    #---------------------------------------------------------------------------
-    # Public
-    #---------------------------------------------------------------------------
+    def add_optional_argument(self, command_name, name, default, description):
+        """Add an argument to an existing command"""
+
+
+        cmd = self._commands.get(command_name, None)
+        if cmd:
+            cmd['optionals'].append({
+                'name': name,
+                'default': default,
+                'description': description,
+            })
+
     def load(self):
-        """Load the EZCLI from decorated functions"""
-        for command, details in self._ezcli.items():
-            self._sub_parser.add_parser(command, help=details.get("help"))
-            for args, kwargs in details.get("args"):
-                self._sub_parser.add_argument(*args, **kwargs)
+        """Load the ``SimpleCli`` from decorated functions"""
 
+        for name, cmd in self._commands.items():
+
+            # Setup command parser
+            cmd_parser = self._command_parsers.add_parser(name, help=cmd['description'])
+            cmd_parser.set_defaults(sub_handler=cmd['handler'])
+
+            # Setup positional arguments for this command
+            for position, positional in enumerate(cmd['positionals']):
+                cmd_parser.add_argument(str(position),
+                                        help=positional['description'])
+
+            # Setup optional arguments for this command
+            for optional in cmd['optionals']:
+                cmd_parser.add_argument("--%s" % optional['name'],
+                                        default=optional['default'],
+                                        help=optional['description'])
     def execute(self):
-        """Execute EZCLI, ultimately excecuting a command"""
+        """Execute one command from command line
 
-        fn = self._args.sub_handler
-        fn(self._args)
+        This calls the command specified in sys args (first positional arg).  The
+        command specified should match a ``command`` user-decorated function.
+        """
+
+        cli_args = self._root_parser.parse_args()
+        cmd = self._commands.get(cli_args.sub_handler.__name__, None)
+        if cmd:
+
+            # Build positional arguments
+            pos_args = []
+            for position, positional in enumerate(cmd['positionals']):
+                arg_val = getattr(cli_args, str(position))
+                pos_args.append(arg_val)
+
+            # Build optional arguments
+            opt_args = {}
+            for optional in cmd['optionals']:
+                opt_args[optional['name']] = getattr(cli_args, optional['name'])
+
+        cli_args.sub_handler(*pos_args, **opt_args)
 
     def add_root_argument(self, *args, **kwargs):
-        """Add an argument to the root argument parser, typically not used"""
+        """Add an argument to the root argument parser, typically not needed"""
+
         self._root_parser.add_argument(*args, **kwargs)
+
+
+#-----------------------------------------------------------------------------------------
+# Public
+#-----------------------------------------------------------------------------------------
+class command(object):
+    """Decorator for adding a command to ``SimpleCli``"""
+
+    def __init__(self, description=''):
+        self._description = description
+
+    def __call__(self, handler):
+        simpcli.add_command(handler.__name__,
+                            self._description,
+                            handler)
+        return handler
+
+
+class positional_argument(object):
+    """Decorator for adding a positional argument to a ``SimpleCli`` command"""
+
+    def __init__(self, description='', type=None):
+        self._description = description
+        self._type = type
+
+    def __call__(self, handler):
+        simpcli.add_positional_argument(handler.__name__,
+                                        self._description)
+        return handler
+
+
+class optional_argument(object):
+    """Decorator for adding an optional argument to a ``SimpleCli`` command"""
+
+    def __init__(self, name, default=None, description='', type=None):
+        self._name = name
+        self._default = default
+        self._description = description
+        self._type = type
+
+    def __call__(self, handler):
+        simpcli.add_optional_argument(handler.__name__,
+                                      self._name,
+                                      self._default,
+                                      self._description)
+        return handler
+
+
+simpcli = _SimpleCli()
