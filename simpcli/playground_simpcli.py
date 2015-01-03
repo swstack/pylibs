@@ -1,10 +1,12 @@
-from simpcli.simpcli import simpcli, command, optional_argument, positional_argument
+from simpcli import simpcli, command, optional_argument, positional_argument
 
 
-@optional_argument("opt", default=None, description="Optional argument")
+@optional_argument("opt", description="Optional argument")
 @positional_argument(description="Positional argument one")
 @command(description="Explore simpcli")
-def explore(pos, opt=None):
+def explore(pos, opt='bar'):
+    import sys
+    print sys.argv
     print "Positional argument: %s" % pos
     print "Optional argument: %s" % opt
 

@@ -45,7 +45,7 @@ class _SimpleCli(object):
                 'description': description,
             })
 
-    def add_optional_argument(self, command_name, name, default, description):
+    def add_optional_argument(self, command_name, name, description):
         """Add an argument to an existing command"""
 
 
@@ -53,7 +53,6 @@ class _SimpleCli(object):
         if cmd:
             cmd['optionals'].append({
                 'name': name,
-                'default': default,
                 'description': description,
             })
 
@@ -74,7 +73,6 @@ class _SimpleCli(object):
             # Setup optional arguments for this command
             for optional in cmd['optionals']:
                 cmd_parser.add_argument("--%s" % optional['name'],
-                                        default=optional['default'],
                                         help=optional['description'])
     def execute(self):
         """Execute one command from command line
@@ -96,7 +94,10 @@ class _SimpleCli(object):
             # Build optional arguments
             opt_args = {}
             for optional in cmd['optionals']:
-                opt_args[optional['name']] = getattr(cli_args, optional['name'])
+                value = getattr(cli_args, optional['name'])
+                if value is not None:
+                    opt_args[optional['name']] = value
+
 
         cli_args.sub_handler(*pos_args, **opt_args)
 
@@ -138,16 +139,14 @@ class positional_argument(object):
 class optional_argument(object):
     """Decorator for adding an optional argument to a ``SimpleCli`` command"""
 
-    def __init__(self, name, default=None, description='', type=None):
+    def __init__(self, name, description='', type=None):
         self._name = name
-        self._default = default
         self._description = description
         self._type = type
 
     def __call__(self, handler):
         simpcli.add_optional_argument(handler.__name__,
                                       self._name,
-                                      self._default,
                                       self._description)
         return handler
 
