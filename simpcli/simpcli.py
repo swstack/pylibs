@@ -74,6 +74,7 @@ class _SimpleCli(object):
             for optional in cmd['optionals']:
                 cmd_parser.add_argument("--%s" % optional['name'],
                                         help=optional['description'])
+
     def execute(self):
         """Execute one command from command line
 
