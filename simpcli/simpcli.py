@@ -67,7 +67,7 @@ class _SimpleCli(object):
 
             # Setup positional arguments for this command
             for position, positional in enumerate(cmd['positionals']):
-                cmd_parser.add_argument(str(position),
+                cmd_parser.add_argument("<pos{}>".format(position + 1),
                                         help=positional['description'])
 
             # Setup optional arguments for this command
@@ -89,7 +89,7 @@ class _SimpleCli(object):
             # Build positional arguments
             pos_args = []
             for position, positional in enumerate(cmd['positionals']):
-                arg_val = getattr(cli_args, str(position))
+                arg_val = getattr(cli_args, "<pos{}>".format(position + 1))
                 pos_args.append(arg_val)
 
             # Build optional arguments
