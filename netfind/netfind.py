@@ -42,13 +42,13 @@ def _get_ips(network, port):
 #-----------------------------------------------------------------------------------------
 @optional_argument('network', description='Network to scan (example: 192.168.1.0/24)')
 @positional_argument(description='Port #')
-@command(description='Scan network for open [port#]')
-def scan_port(port_num, network='192.168.1.0/24'):
-    old_ips = set(_get_ips(network, port_num))
+@command(description='Scan [network] for [port] availability')
+def scan_port(port, network='192.168.1.0/24'):
+    old_ips = set(_get_ips(network, port))
     print "Running... will print on change"
     while True:
         print "."
-        new_ips = set(_get_ips(network, port_num))
+        new_ips = set(_get_ips(network, port))
         added = new_ips - old_ips
         removed = old_ips - new_ips
         old_ips = new_ips
@@ -59,6 +59,14 @@ def scan_port(port_num, network='192.168.1.0/24'):
             for ip in removed:
                 print "- %s" % ip
         time.sleep(1)
+
+
+@optional_argument('network', description='Network to scan (example: 192.168.1.0/24)')
+@positional_argument(description='Port #')
+@command(description='List all hosts with open [port] on a [network]')
+def list_hosts(port, network='192.168.1.0/24'):
+    for ip in _get_ips(network, port):
+        print ip
 
 
 if __name__ == "__main__":
